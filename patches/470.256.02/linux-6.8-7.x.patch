@@ -1,60 +1,76 @@
-diff -ur ./build/orig_470.256.02/kernel/common/inc/nv-linux.h ./build/NVIDIA-Linux-x86_64-470.256.02/kernel/common/inc/nv-linux.h
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -67,5 +67,6 @@
+ EXTRA_CFLAGS += -DNV_SPECTRE_V2=$(NV_SPECTRE_V2)
+ EXTRA_CFLAGS += -DNV_KERNEL_INTERFACE_LAYER
++ccflags-y += $(EXTRA_CFLAGS)
+
+ #
+ # Detect SGI UV systems and apply system-specific optimizations.
 --- a/kernel/common/inc/nv-linux.h
 +++ b/kernel/common/inc/nv-linux.h
-@@ -1817,7 +1817,7 @@
+@@ -330,6 +330,8 @@
+ #if (NV_ACPI_WALK_NAMESPACE_ARGUMENT_COUNT == 6)
+ #define NV_ACPI_WALK_NAMESPACE(a,b,c,d,e,f) acpi_walk_namespace(a,b,c,d,e,f)
+ #elif (NV_ACPI_WALK_NAMESPACE_ARGUMENT_COUNT == 7)
+ #define NV_ACPI_WALK_NAMESPACE(a,b,c,d,e,f) acpi_walk_namespace(a,b,c,d,e,f,NULL)
++#else
++#define NV_ACPI_WALK_NAMESPACE(a,b,c,d,e,f) acpi_walk_namespace(a,b,c,d,e,f,NULL)
+ #endif
+
+@@ -700,7 +702,11 @@
+ static inline dma_addr_t nv_phys_to_dma(struct device *dev, phys_addr_t pa)
+ {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
++    return (dma_addr_t)pa;
++#else
+     return phys_to_dma(dev, pa);
++#endif
+ }
+
+@@ -1231,7 +1237,11 @@
+ static inline bool nv_is_dma_direct(struct device *dev)
+ {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
++    return true;
++#else
+     if (dma_is_direct(get_dma_ops(dev)))
+         return true;
+     return false;
++#endif
+ }
+
+@@ -1817,7 +1827,7 @@
  #if defined(NV_FILE_HAS_INODE)
  #define NV_FILE_INODE(file) (file)->f_inode
  #else
 -#define NV_FILE_INODE(file) (file)->f_dentry->d_inode
 +#define NV_FILE_INODE(file) file_inode(file)
  #endif
- 
- #if defined(NV_DOM0_KERNEL_PRESENT) || defined(NV_VGPU_KVM_BUILD)
-diff -ur ./build/orig_470.256.02/kernel/common/inc/nv-mm.h ./build/NVIDIA-Linux-x86_64-470.256.02/kernel/common/inc/nv-mm.h
+
 --- a/kernel/common/inc/nv-mm.h
 +++ b/kernel/common/inc/nv-mm.h
-@@ -187,7 +187,7 @@
- #if defined(NV_VM_FAULT_HAS_ADDRESS)
-     return vmf->address;
- #else
--    return (unsigned long)(vmf->virtual_address);
-+    return (unsigned long)(vmf->address);
- #endif
- }
- 
-@@ -258,12 +258,12 @@
- #else
- static inline void nv_vm_flags_set(struct vm_area_struct *vma, unsigned long flags)
+@@ -163,7 +163,11 @@
+             int write = flags & FOLL_WRITE;
+             int force = flags & FOLL_FORCE;
+
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
++            return get_user_pages(start, nr_pages, flags, pages, vmas);
++#else
+             return get_user_pages(NULL, mm, start, nr_pages, write, force, pages, vmas);
++#endif
+         }
+
+--- a/kernel/nvidia/nv.c
++++ b/kernel/nvidia/nv.c
+@@ -3838,7 +3838,11 @@
+ void nv_stop_rc_timer(nv_state_t *nv)
  {
--    vma->vm_flags |= flags;
-+    vm_flags_set(vma, flags);
+     nv_linux_state_t *nvl = NV_GET_NVL_FROM_NV_STATE(nv);
+
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0) || defined(timer_delete_sync)
++    timer_delete_sync(&nvl->rc_timer.kernel_timer);
++#else
+     del_timer_sync(&nvl->rc_timer.kernel_timer);
++#endif
  }
- 
- static inline void nv_vm_flags_clear(struct vm_area_struct *vma, unsigned long flags)
- {
--    vma->vm_flags &= ~flags;
-+    vm_flags_clear(vma, flags);
- }
- #endif
- 
-diff -ur ./build/orig_470.256.02/kernel/common/inc/nv-time.h ./build/NVIDIA-Linux-x86_64-470.256.02/kernel/common/inc/nv-time.h
---- a/kernel/common/inc/nv-time.h
-+++ b/kernel/common/inc/nv-time.h
-@@ -141,7 +141,7 @@
-     ktime_get_real_ts64(&tm1);
- #endif
- 
--    if (in_irq() && (us > NV_MAX_ISR_DELAY_US))
-+    if (in_hardirq() && (us > NV_MAX_ISR_DELAY_US))
-         return NV_ERR_GENERIC;
- 
-     mdelay_safe_msec = us / 1000;
-@@ -187,7 +187,7 @@
-     tm_start = tm_aux;
- #endif
- 
--    if (in_irq() && (ms > NV_MAX_ISR_DELAY_MS))
-+    if (in_hardirq() && (ms > NV_MAX_ISR_DELAY_MS))
-     {
-         return NV_ERR_GENERIC;
-     }
