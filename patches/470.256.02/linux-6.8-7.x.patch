@@ -1,55 +1,60 @@
-diff -u -r a/kernel/conftest.sh b/kernel/conftest.sh
---- a/kernel/conftest.sh
-+++ b/kernel/conftest.sh
-@@ -5107,7 +5107,7 @@
-             #
-             CODE="
-             #include <acpi/acpi_bus.h>
--            void conftest_acpi_walk_namespace(void) {
-+            void conftest_acpi_walk_namespace(acpi_type type, acpi_handle start_object, u32 max_depth, acpi_walk_callback user_function, acpi_walk_callback post_space_function, void *context, void **return_value) {
-                 acpi_walk_namespace(0, NULL, 0, NULL, NULL, NULL, NULL);
-             }"
-             compile_check_conftest "$CODE" "NV_ACPI_WALK_NAMESPACE_PRESENT" "" "functions"
-diff -u -r a/kernel/nvidia-drm/nvidia-drm-drv.c b/kernel/nvidia-drm/nvidia-drm-drv.c
---- a/kernel/nvidia-drm/nvidia-drm-drv.c
-+++ b/kernel/nvidia-drm/nvidia-drm-drv.c
-@@ -87,7 +87,9 @@
- #include <drm/drm_screen_ref.h>
- #endif
-
-+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
- #include <drm/drm_gem_framebuffer_helper.h>
-+#endif
-
- #if defined(NV_DRM_DRM_LEGACY_H_PRESENT)
- #include <drm/drm_legacy.h>
-diff -u -r a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
---- a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
-+++ b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
-@@ -382,7 +382,11 @@
-     .mmap       = nv_drm_gem_nvkms_mmap,
-     .vmap       = nv_drm_gem_nvkms_vmap,
-     .vunmap     = nv_drm_gem_nvkms_vunmap,
-+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
-     .get_sg_table = nv_drm_gem_nvkms_get_sg_table,
-+#else
-+    .get_sg_table = (void *)nv_drm_gem_nvkms_get_sg_table,
-+#endif
- };
-
- struct nv_drm_gem_object *
-diff -u -r a/kernel/common/inc/nv-linux.h b/kernel/common/inc/nv-linux.h
+diff -ur ./build/orig_470.256.02/kernel/common/inc/nv-linux.h ./build/NVIDIA-Linux-x86_64-470.256.02/kernel/common/inc/nv-linux.h
 --- a/kernel/common/inc/nv-linux.h
 +++ b/kernel/common/inc/nv-linux.h
-@@ -155,7 +155,11 @@
- #include <linux/slab.h>
-
- #include <linux/string.h>
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
-+#include <linux/stdarg.h>
-+#else
- #include <stdarg.h>
-+#endif
-
- #include <asm/uaccess.h>
- #include <linux/delay.h>
+@@ -1817,7 +1817,7 @@
+ #if defined(NV_FILE_HAS_INODE)
+ #define NV_FILE_INODE(file) (file)->f_inode
+ #else
+-#define NV_FILE_INODE(file) (file)->f_dentry->d_inode
++#define NV_FILE_INODE(file) file_inode(file)
+ #endif
+ 
+ #if defined(NV_DOM0_KERNEL_PRESENT) || defined(NV_VGPU_KVM_BUILD)
+diff -ur ./build/orig_470.256.02/kernel/common/inc/nv-mm.h ./build/NVIDIA-Linux-x86_64-470.256.02/kernel/common/inc/nv-mm.h
+--- a/kernel/common/inc/nv-mm.h
++++ b/kernel/common/inc/nv-mm.h
+@@ -187,7 +187,7 @@
+ #if defined(NV_VM_FAULT_HAS_ADDRESS)
+     return vmf->address;
+ #else
+-    return (unsigned long)(vmf->virtual_address);
++    return (unsigned long)(vmf->address);
+ #endif
+ }
+ 
+@@ -258,12 +258,12 @@
+ #else
+ static inline void nv_vm_flags_set(struct vm_area_struct *vma, unsigned long flags)
+ {
+-    vma->vm_flags |= flags;
++    vm_flags_set(vma, flags);
+ }
+ 
+ static inline void nv_vm_flags_clear(struct vm_area_struct *vma, unsigned long flags)
+ {
+-    vma->vm_flags &= ~flags;
++    vm_flags_clear(vma, flags);
+ }
+ #endif
+ 
+diff -ur ./build/orig_470.256.02/kernel/common/inc/nv-time.h ./build/NVIDIA-Linux-x86_64-470.256.02/kernel/common/inc/nv-time.h
+--- a/kernel/common/inc/nv-time.h
++++ b/kernel/common/inc/nv-time.h
+@@ -141,7 +141,7 @@
+     ktime_get_real_ts64(&tm1);
+ #endif
+ 
+-    if (in_irq() && (us > NV_MAX_ISR_DELAY_US))
++    if (in_hardirq() && (us > NV_MAX_ISR_DELAY_US))
+         return NV_ERR_GENERIC;
+ 
+     mdelay_safe_msec = us / 1000;
+@@ -187,7 +187,7 @@
+     tm_start = tm_aux;
+ #endif
+ 
+-    if (in_irq() && (ms > NV_MAX_ISR_DELAY_MS))
++    if (in_hardirq() && (ms > NV_MAX_ISR_DELAY_MS))
+     {
+         return NV_ERR_GENERIC;
+     }
