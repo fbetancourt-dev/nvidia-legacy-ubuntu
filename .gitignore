@@ -1,0 +1,22 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Build and driver artifacts
+*.run
+*.ko
+*.o
+*.mod
+*.mod.c
+.tmp_versions/
+modules.order
+Module.symvers
+
+# System / OS files
+.DS_Store
+*.swp
+*~
