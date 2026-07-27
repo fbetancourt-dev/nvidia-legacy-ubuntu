@@ -1,0 +1,15 @@
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -67,3 +67,4 @@
+ EXTRA_CFLAGS += -DNV_SPECTRE_V2=$(NV_SPECTRE_V2)
+ EXTRA_CFLAGS += -DNV_KERNEL_INTERFACE_LAYER
++ccflags-y += $(EXTRA_CFLAGS)
+--- a/kernel/common/inc/nv-linux.h
++++ b/kernel/common/inc/nv-linux.h
+@@ -1817,3 +1817,7 @@
+-#define NV_FILE_INODE(file) (file)->f_dentry->d_inode
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
++#define NV_FILE_INODE(file) file_inode(file)
++#else
++#define NV_FILE_INODE(file) (file)->f_dentry->d_inode
++#endif
