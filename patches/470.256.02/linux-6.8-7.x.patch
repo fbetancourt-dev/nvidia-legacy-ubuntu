@@ -1,0 +1,55 @@
+diff -u -r a/kernel/conftest.sh b/kernel/conftest.sh
+--- a/kernel/conftest.sh
++++ b/kernel/conftest.sh
+@@ -5107,7 +5107,7 @@
+             #
+             CODE="
+             #include <acpi/acpi_bus.h>
+-            void conftest_acpi_walk_namespace(void) {
++            void conftest_acpi_walk_namespace(acpi_type type, acpi_handle start_object, u32 max_depth, acpi_walk_callback user_function, acpi_walk_callback post_space_function, void *context, void **return_value) {
+                 acpi_walk_namespace(0, NULL, 0, NULL, NULL, NULL, NULL);
+             }"
+             compile_check_conftest "$CODE" "NV_ACPI_WALK_NAMESPACE_PRESENT" "" "functions"
+diff -u -r a/kernel/nvidia-drm/nvidia-drm-drv.c b/kernel/nvidia-drm/nvidia-drm-drv.c
+--- a/kernel/nvidia-drm/nvidia-drm-drv.c
++++ b/kernel/nvidia-drm/nvidia-drm-drv.c
+@@ -87,7 +87,9 @@
+ #include <drm/drm_screen_ref.h>
+ #endif
+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
+ #include <drm/drm_gem_framebuffer_helper.h>
++#endif
+
+ #if defined(NV_DRM_DRM_LEGACY_H_PRESENT)
+ #include <drm/drm_legacy.h>
+diff -u -r a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
+--- a/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
++++ b/kernel/nvidia-drm/nvidia-drm-gem-nvkms-memory.c
+@@ -382,7 +382,11 @@
+     .mmap       = nv_drm_gem_nvkms_mmap,
+     .vmap       = nv_drm_gem_nvkms_vmap,
+     .vunmap     = nv_drm_gem_nvkms_vunmap,
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
+     .get_sg_table = nv_drm_gem_nvkms_get_sg_table,
++#else
++    .get_sg_table = (void *)nv_drm_gem_nvkms_get_sg_table,
++#endif
+ };
+
+ struct nv_drm_gem_object *
+diff -u -r a/kernel/common/inc/nv-linux.h b/kernel/common/inc/nv-linux.h
+--- a/kernel/common/inc/nv-linux.h
++++ b/kernel/common/inc/nv-linux.h
+@@ -155,7 +155,11 @@
+ #include <linux/slab.h>
+
+ #include <linux/string.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
++#include <linux/stdarg.h>
++#else
+ #include <stdarg.h>
++#endif
+
+ #include <asm/uaccess.h>
+ #include <linux/delay.h>
