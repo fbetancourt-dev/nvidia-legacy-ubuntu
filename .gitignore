@@ -7,6 +7,8 @@ env/
 venv/
 
 # Build and driver artifacts
+build/
+.cache/
 *.run
 *.ko
 *.o
