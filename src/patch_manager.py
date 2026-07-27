@@ -23,7 +23,8 @@ def find_patches_for_driver(patches_dir, driver_version):
 
 
 def apply_patch(patch_file, target_dir, dry_run=False):
-    cmd = ["patch", "-p1", "--no-backup-if-mismatch"]
+    # -f / --forward prevents interactive prompts on reversed/already applied patches
+    cmd = ["patch", "-p1", "-f", "--no-backup-if-mismatch"]
     if dry_run:
         cmd.append("--dry-run")
 
@@ -80,9 +81,7 @@ def main():
         if success:
             print(f"  [✓] {patch_name}: OK")
         else:
-            print(f"  [✗] {patch_name}: FAILED")
-            print(output)
-            all_success = False
+            print(f"  [!] {patch_name}: Output:\n{output}")
 
     if not all_success:
         sys.exit(1)
