@@ -43,17 +43,48 @@ def setup_dkms(driver_version, source_dir):
     if not run_command(cmd_copy):
         return False
 
-    # Register and build via dkms
+    # Generate complete dkms.conf with substituted placeholders
+    dkms_conf_content = f"""PACKAGE_NAME="nvidia"
+PACKAGE_VERSION="{driver_version}"
+AUTOINSTALL="yes"
+
+MAKE[0]="'make' -j$(nproc) NV_EXCLUDE_BUILD_MODULES='' KERNEL_UNAME=${{kernelver}} IGNORE_CC_MISMATCH='1' modules"
+
+BUILT_MODULE_NAME[0]="nvidia"
+DEST_MODULE_LOCATION[0]="/kernel/drivers/video/nvidia"
+BUILT_MODULE_NAME[1]="nvidia-modeset"
+DEST_MODULE_LOCATION[1]="/kernel/drivers/video/nvidia"
+BUILT_MODULE_NAME[2]="nvidia-uvm"
+DEST_MODULE_LOCATION[2]="/kernel/drivers/video/nvidia"
+BUILT_MODULE_NAME[3]="nvidia-drm"
+DEST_MODULE_LOCATION[3]="/kernel/drivers/video/nvidia"
+BUILT_MODULE_NAME[4]="nvidia-peermem"
+DEST_MODULE_LOCATION[4]="/kernel/drivers/video/nvidia"
+"""
+
+    temp_dkms_conf = "/tmp/nvidia_dkms.conf"
+    with open(temp_dkms_conf, "w") as f:
+        f.write(dkms_conf_content)
+
+    cmd_write_conf = f"sudo cp {temp_dkms_conf} {dkms_target_dir}/dkms.conf"
+    if not run_command(cmd_write_conf):
+        return False
+
+    # Register, build and install via dkms
+    cmd_dkms_remove = f"sudo dkms remove -m nvidia -v {driver_version} --all 2>/dev/null || true"
     cmd_dkms_add = f"sudo dkms add -m nvidia -v {driver_version} --force"
     cmd_dkms_build = f"sudo dkms build -m nvidia -v {driver_version}"
     cmd_dkms_install = f"sudo dkms install -m nvidia -v {driver_version} --force"
 
+    run_command(cmd_dkms_remove)
+
     print("[*] Adding module to DKMS...")
-    run_command(cmd_dkms_add)
+    if not run_command(cmd_dkms_add):
+        return False
 
     print("[*] Building DKMS module...")
     if not run_command(cmd_dkms_build):
-        print("[!] DKMS build failed. Check /var/lib/dkms/nvidia/*/build/make.log")
+        print(f"[!] DKMS build failed. Check /var/lib/dkms/nvidia/{driver_version}/build/make.log")
         return False
 
     print("[*] Installing DKMS module...")
